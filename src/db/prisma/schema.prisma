@@ -1,0 +1,49 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  username String @unique
+  email String
+  password String
+}
+enum Difficulty {
+  beginner 
+  intermediate
+  advanced
+  expert
+}
+
+enum Category {
+  filEexploration 
+  crypto
+  binary
+  forensics
+  web
+  network
+}
+
+
+model Level {
+  uniqueId String @unique
+  goal String
+  description String
+  commands String[]
+  hints String[]
+  files String?
+  expectedOutput String?
+  difficulty Difficulty
+  category Category
+  solutionSteps String?
+  estimatedTime String
+  createdAt DateTime
+}

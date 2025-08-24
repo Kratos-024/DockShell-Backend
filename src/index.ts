@@ -1,44 +1,28 @@
-import { WebSocketServer } from "ws";
-import os from "os";
 import { Client } from "ssh2";
+import { WebSocketServer } from "ws";
+import http from "http";
+import { app } from "./app";
+const server = http.createServer(app);
+const PORT = process.env.PORT || 8080;
 
-const PORT = 8080;
-const wss = new WebSocketServer({ port: PORT });
-
-console.log(`WebSocket server started on ws://localhost:${PORT}`);
-console.log(`Platform: ${os.platform()}`);
+const wss = new WebSocketServer({ server });
+console.log(`WebSocket server running on ws://localhost:${PORT}`);
 
 wss.on("connection", (ws) => {
-  console.log("Client connected");
+  console.log("User connected successfully");
 
   const sshClient = new Client();
   let sshStream: any = null;
-  let isSSHConnected = false; // Track SSH connection state
+  let isSSHConnected = false;
 
   ws.send("$ ");
 
-  // ✅ Handle SSH client disconnection properly
-  sshClient.on("close", () => {
-    console.log("SSH connection closed");
-    isSSHConnected = false;
-    sshStream = null;
-    ws.send("\r\nSSH connection closed\r\n$ "); // Send new local prompt
-  });
-
-  sshClient.on("error", (err) => {
-    console.log("SSH client error:", err.message);
-    isSSHConnected = false;
-    sshStream = null;
-    ws.send(`\r\nSSH error: ${err.message}\r\n$ `); // Send new local prompt
-  });
-
-  ws.on("message", (raw) => {
-    const msg = raw.toString();
+  ws.on("message", (message) => {
+    const msg = message.toString();
 
     try {
       const parsed = JSON.parse(msg);
 
-      // Handle connection config
       if (parsed.type === "connect") {
         const { host, port, username, password } = parsed.data;
 
@@ -53,19 +37,14 @@ wss.on("connection", (ws) => {
             }
             sshStream = stream;
 
-            // ✅ Handle shell stream data
-            sshStream.on("data", (data: Buffer) => {
-              ws.send(data.toString());
-            });
+            stream.on("data", (data: Buffer) => ws.send(data.toString()));
 
-            // ✅ Handle shell stream close (when user types 'exit')
-            sshStream.on("close", () => {
+            stream.on("close", () => {
               console.log("SSH shell stream closed");
               sshStream = null;
-              // Don't send prompt here - let SSH client 'close' event handle it
             });
 
-            sshStream.on("error", (err: any) => {
+            stream.on("error", (err: any) => {
               console.log("SSH stream error:", err.message);
               ws.send(`\r\nStream error: ${err.message}\r\n$ `);
               sshStream = null;
@@ -73,16 +52,27 @@ wss.on("connection", (ws) => {
           });
         });
 
+        sshClient.on("close", () => {
+          console.log("SSH connection closed");
+          isSSHConnected = false;
+          sshStream = null;
+          ws.send("\r\nSSH connection closed\r\n$ ");
+          ws.send("$ ");
+        });
+
+        sshClient.on("error", (err) => {
+          console.log("SSH client error:", err.message);
+          isSSHConnected = false;
+          sshStream = null;
+          ws.send(`\r\nSSH error: ${err.message}\r\n$ `);
+        });
         sshClient.connect({ host, port, username, password });
         return;
       }
     } catch {
-      // Not JSON → must be a terminal command
       if (sshStream && isSSHConnected) {
-        // Forward to SSH
         sshStream.write(msg);
       } else {
-        // ✅ Handle local commands when not connected to SSH
         if (msg.trim() === "") {
           ws.send("$ ");
           return;
@@ -93,31 +83,34 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        // For any other command when not SSH connected
         ws.send(
           "Not connected to SSH. Use 'ssh username@host -p port' first.\r\n$ "
         );
       }
     }
-  });
 
-  // ✅ Clean WebSocket disconnect
-  ws.on("close", () => {
-    console.log("WebSocket client disconnected");
-    if (sshStream) {
-      sshStream.end();
-    }
-    if (isSSHConnected) {
-      sshClient.end();
-    }
+    console.log("User sent:", msg);
   });
 
   ws.on("error", (error) => {
     console.error("WebSocket error:", error);
+  });
+
+  ws.on("close", () => {
+    console.log("WebSocket client disconnected");
+    if (sshStream) sshStream.end();
+    if (isSSHConnected) sshClient.end();
+    ws.send("$ ");
   });
 });
 
 process.on("SIGTERM", () => {
   console.log("Shutting down WebSocket server...");
   wss.close();
+  server.close();
+});
+
+server.listen(PORT, () => {
+  console.log(`HTTP server running at http://localhost:${PORT}`);
+  console.log(`WebSocket server running at ws://localhost:${PORT}`);
 });
