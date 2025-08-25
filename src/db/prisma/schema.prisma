@@ -36,6 +36,7 @@ enum Category {
 model Level {
   uniqueId String @unique
   goal String
+  links String[]
   description String
   commands String[]
   hints String[]
@@ -43,7 +44,6 @@ model Level {
   expectedOutput String?
   difficulty Difficulty
   category Category
-  solutionSteps String?
   estimatedTime String
   createdAt DateTime
 }

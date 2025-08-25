@@ -6,6 +6,7 @@ const levelCreateSchema = z.object({
   description: z.string().min(20, "Description must explain the scenario"),
   commands: z.array(z.string().min(1, "Must specify useful commands")),
   hints: z.array(z.string()).optional(),
+  links: z.array(z.string()).optional(),
   files: z
     .array(
       z.object({
@@ -29,7 +30,6 @@ const levelCreateSchema = z.object({
     "forensics",
     "network",
   ]),
-  solutionSteps: z.array(z.string()).min(1, "Must provide solution steps"),
   estimatedTime: z.number().min(1).max(120),
 
   createdAt: z.date().default(() => new Date()),

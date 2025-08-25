@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { LevelController } from "../controllers/levels.controller";
 
-const levelRouter = Router();
-const level = new LevelController();
-levelRouter.route("/create").post(level.createLevel);
-levelRouter.route("/getLevel/:uniqueId").post(level.getLevel);
-levelRouter.route("/getAllLevel").post(level.getAllLevels);
-levelRouter.route("/deleteLevel/:uniqueId").post(level.deleteLevel);
+const ctfLevelRouter = Router();
+const ctfLevel = new LevelController();
+ctfLevelRouter.route("/createLevel").post(ctfLevel.createLevel);
+ctfLevelRouter.route("/getctfLevel/:uniqueId").post(ctfLevel.getLevel);
+ctfLevelRouter.route("/getAllctfLevel").post(ctfLevel.getAllLevels);
+ctfLevelRouter.route("/deleteCtfLevel/:uniqueId").post(ctfLevel.deleteLevel);
 
-export { levelRouter };
+export { ctfLevelRouter };
