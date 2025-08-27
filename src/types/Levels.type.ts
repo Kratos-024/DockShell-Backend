@@ -34,10 +34,13 @@ const levelCreateSchema = z.object({
 
   createdAt: z.date().default(() => new Date()),
 });
-
-const userLoginSchema = z.object({
-  username: z.string(),
-  password: z.string(),
+const saveLevelSchema = z.object({
+  ctfName: z.string().min(1, "CTF name is required."),
+  levelNo: z
+    .number()
+    .int()
+    .positive("Level number must be a positive integer."),
+  password: z.string().min(1, "Password is required."),
 });
 
-export { levelCreateSchema, userLoginSchema };
+export { levelCreateSchema, saveLevelSchema };

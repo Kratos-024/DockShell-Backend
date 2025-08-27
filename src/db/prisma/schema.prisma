@@ -10,40 +10,85 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-model User {
-  username String @unique
-  email String
+model ctfClaimed {
+  id String @id @default(cuid())
+  levelNo Int
   password String
+  ctfprogress      CtfProgress     @relation(fields: [id], references: [id], onDelete: Cascade)
+  @@map("ctf_claimed")
 }
+model CtfProgress {
+  id String      @id @default(cuid())
+  ctfName String
+  ctflevels ctfClaimed[] 
+  user User @relation(fields: [id], references: [username], onDelete: Cascade)
+  userId     String                                      // FK for relation
+  @@unique([userId, ctfName])
+  @@map("ctf_progress")
+}
+model User {
+  id               String      @id @default(cuid())
+  firstName        String
+  LastName         String
+  username         String      @unique
+  email            String      @unique 
+  password         String
+  resetToken       String?     @unique
+  resetTokenExpiry DateTime?
+  lastLogin        DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  tokens           AuthToken[] 
+  ctfsProgress     CtfProgress[]
+  @@map("users")
+}
+
+model AuthToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_tokens")
+}
+
 enum Difficulty {
-  beginner 
+  beginner
   intermediate
   advanced
   expert
 }
 
 enum Category {
-  filEexploration 
+  filEexploration
   crypto
   binary
   forensics
   web
   network
 }
-
-
-model Level {
-  uniqueId String @unique
-  goal String
-  links String[]
-  description String
-  commands String[]
-  hints String[]
-  files String?
+model CTFS {
+  ctfName String @unique
+  totalLevels Int
+}
+model CtfLevels {
+  ctfName String
+  id             String       @id @default(cuid())
+  uniqueId       String       @unique
+  goal           String
+  links          String[]
+  description    String
+  commands       String[]
+  hints          String[]
+  files          String?
   expectedOutput String?
-  difficulty Difficulty
-  category Category
-  estimatedTime String
-  createdAt DateTime
+  difficulty     Difficulty
+  category       Category
+  estimatedTime  String
+  createdAt      DateTime     @default(now()) 
+  updatedAt      DateTime     @updatedAt    
+  
+  @@map("levels")
 }
