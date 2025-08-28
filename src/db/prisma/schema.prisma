@@ -11,19 +11,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 model ctfClaimed {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @unique
+  ctfProgressId String
   levelNo Int
   password String
-  ctfprogress      CtfProgress     @relation(fields: [id], references: [id], onDelete: Cascade)
+  ctfprogress      CtfProgress     @relation(fields: [ctfProgressId], references: [id], onDelete: Cascade)
   @@map("ctf_claimed")
 }
 model CtfProgress {
   id String      @id @default(cuid())
   ctfName String
-  ctflevels ctfClaimed[] 
-  user User @relation(fields: [id], references: [username], onDelete: Cascade)
-  userId     String                                      // FK for relation
-  @@unique([userId, ctfName])
+  ctfClaimeds ctfClaimed[] 
+  user User @relation(fields: [username], references: [username], onDelete: Cascade)
+  username     String                                    
+  @@unique([username, ctfName])
   @@map("ctf_progress")
 }
 model User {
@@ -74,6 +75,7 @@ model CTFS {
   totalLevels Int
 }
 model CtfLevels {
+  levelNo Int
   ctfName String
   id             String       @id @default(cuid())
   uniqueId       String       @unique

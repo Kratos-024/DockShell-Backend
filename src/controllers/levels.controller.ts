@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { levelCreateSchema, saveLevelSchema } from "../types/Levels.type";
 import { prisma } from "../db";
+import { success } from "zod";
 
 class LevelController {
   public async createLevel(req: Request, res: Response) {
@@ -16,6 +17,7 @@ class LevelController {
       const {
         uniqueId,
         goal,
+        ctfName,
         description,
         commands,
         hints,
@@ -28,8 +30,8 @@ class LevelController {
         createdAt,
       } = levelData.data;
 
-      const levelExisted = await prisma.ctfLevel.findFirst({
-        where: { id: uniqueId },
+      const levelExisted = await prisma.ctfLevels.findFirst({
+        where: { uniqueId },
       });
       if (levelExisted) {
         return res.status(409).json({
@@ -38,14 +40,15 @@ class LevelController {
         });
       }
 
-      const level = await prisma.ctfLevel.create({
+      const level = await prisma.ctfLevels.create({
         data: {
-          id: uniqueId,
+          uniqueId,
           goal,
+          ctfName,
           levelNo: 3,
           description,
           commands: commands,
-          hints: hints || undefined,
+          hints: hints,
           files: files ? JSON.stringify(files) : null,
           links: links || [],
           expectedOutput: expectedOutput || null,
@@ -72,8 +75,8 @@ class LevelController {
     try {
       const { uniqueId } = req.params;
 
-      const level = await prisma.ctfLevel.findUnique({
-        where: { id: uniqueId },
+      const level = await prisma.ctfLevels.findUnique({
+        where: { uniqueId },
       });
       if (!level) {
         return res.status(404).json({
@@ -96,7 +99,7 @@ class LevelController {
 
   public async getAllLevels(req: Request, res: Response) {
     try {
-      const levels = await prisma.ctfLevel.findMany();
+      const levels = await prisma.ctfLevels.findMany();
 
       return res.status(200).json({
         statusCode: 200,
@@ -115,7 +118,7 @@ class LevelController {
     try {
       const { uniqueId } = req.params;
 
-      const level = await prisma.ctfLevel.findUnique({ where: { uniqueId } });
+      const level = await prisma.ctfLevels.findUnique({ where: { uniqueId } });
       if (!level) {
         return res.status(404).json({
           statusCode: 404,
@@ -123,7 +126,7 @@ class LevelController {
         });
       }
 
-      await prisma.ctfLevel.delete({ where: { uniqueId } });
+      await prisma.ctfLevels.delete({ where: { uniqueId } });
 
       return res.status(200).json({
         statusCode: 200,
@@ -138,8 +141,8 @@ class LevelController {
   }
   public saveLevelProgress = async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId;
-      if (!userId) {
+      const user = req.user;
+      if (!user?.userId) {
         return res.status(401).json({ error: "User not authenticated." });
       }
 
@@ -148,14 +151,14 @@ class LevelController {
         return res.status(400).json({ error: validationResult.error.format() });
       }
       const { ctfName, levelNo, password } = validationResult.data;
-
+      console.log({ ctfName, levelNo, password });
       const ctfProgress = await prisma.ctfProgress.upsert({
         where: {
-          userId_ctfName: { userId, ctfName },
+          username_ctfName: { username: user.username, ctfName },
         },
         update: {},
         create: {
-          userId: userId,
+          username: user.username,
           ctfName: ctfName,
         },
       });
@@ -165,10 +168,12 @@ class LevelController {
           levelNo,
           password,
 
-          ctfProgress: { connect: { id: ctfProgress.id } },
+          ctfprogress: {
+            connect: { id: ctfProgress.id },
+          },
         },
       });
-
+      console.log("fdsjfdsgfdf", newClaimedLevel);
       return res.status(201).json({
         message: `Progress for ${ctfName} Level ${levelNo} saved successfully.`,
         data: newClaimedLevel,
@@ -184,77 +189,74 @@ class LevelController {
     }
   };
 
-  /**
-   * Gets all CTF progress for the currently authenticated user.
-   */
   public getAllUserProgress = async (req: Request, res: Response) => {
     try {
-      const userId = req.user?.userId;
-      if (!userId) {
-        return res.status(401).json({ error: "User not authenticated." });
+      const user = req.user;
+      if (!user?.userId) {
+        return res
+          .status(401)
+          .json({ success: false, error: "User not authenticated." });
       }
 
       const allProgress = await prisma.ctfProgress.findMany({
-        where: { userId: userId },
+        where: { username: user.username },
         include: {
-          // Include all the levels they've claimed for each CTF
-          ctflevels: {
-            orderBy: { levelNo: "asc" }, // Order the claimed levels
-          },
+          ctfClaimeds: {},
         },
       });
-
+      console.log(allProgress);
       if (!allProgress.length) {
-        return res
-          .status(404)
-          .json({ message: "No progress found for this user." });
-      }
-
-      return res.status(200).json({ data: allProgress });
-    } catch (error: any) {
-      console.error("Error fetching user progress:", error);
-      return res.status(500).json({ error: "Internal Server Error" });
-    }
-  };
-
-  public getLevelProgress = async (req: Request, res: Response) => {
-    try {
-      const userId = req.user?.userId;
-      if (!userId) {
-        return res.status(401).json({ error: "User not authenticated." });
-      }
-
-      // Get ctfName and levelNo from URL parameters
-      const { ctfName } = req.params;
-      const levelNo = parseInt(req.params.levelNo, 10);
-
-      if (!ctfName || isNaN(levelNo)) {
-        return res
-          .status(400)
-          .json({ error: "Invalid ctfName or levelNo parameter." });
-      }
-
-      const levelProgress = await prisma.ctfClaimed.findFirst({
-        where: {
-          levelNo: levelNo,
-          ctfProgress: {
-            userId: userId,
-            ctfName: ctfName,
-          },
-        },
-      });
-
-      if (!levelProgress) {
         return res.status(404).json({
-          message: `Progress for ${ctfName} Level ${levelNo} not found.`,
+          success: true,
+          message: "No progress found for this user.",
         });
       }
 
-      return res.status(200).json({ data: levelProgress });
+      return res.status(200).json({ success: true, data: allProgress });
     } catch (error: any) {
-      console.error("Error fetching level progress:", error);
-      return res.status(500).json({ error: "Internal Server Error" });
+      console.error("Error fetching user progress:", error);
+      return res
+        .status(500)
+        .json({ success: false, error: "Internal Server Error" });
     }
   };
+
+  // public getLevelProgress = async (req: Request, res: Response) => {
+  //   try {
+  //     const userId = req.user?.userId;
+  //     if (!userId) {
+  //       return res.status(401).json({ error: "User not authenticated." });
+  //     }
+  //     const { ctfName } = req.params;
+  //     const levelNo = parseInt(req.params.levelNo, 10);
+
+  //     if (!ctfName || isNaN(levelNo)) {
+  //       return res
+  //         .status(400)
+  //         .json({ error: "Invalid ctfName or levelNo parameter." });
+  //     }
+
+  //     const levelProgress = await prisma.ctfClaimed.findFirst({
+  //       where: {
+  //         levelNo: levelNo,
+  //         ctfProgress: {
+  //           userId: userId,
+  //           ctfName: ctfName,
+  //         },
+  //       },
+  //     });
+
+  //     if (!levelProgress) {
+  //       return res.status(404).json({
+  //         message: `Progress for ${ctfName} Level ${levelNo} not found.`,
+  //       });
+  //     }
+
+  //     return res.status(200).json({ data: levelProgress });
+  //   } catch (error: any) {
+  //     console.error("Error fetching level progress:", error);
+  //     return res.status(500).json({ error: "Internal Server Error" });
+  //   }
+  // };
 }
 export { LevelController };

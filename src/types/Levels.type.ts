@@ -19,7 +19,7 @@ const levelCreateSchema = z.object({
       })
     )
     .optional(),
-
+  ctfName: z.string(),
   expectedOutput: z.string().optional().optional(),
   difficulty: z.enum(["beginner", "intermediate", "advanced", "expert"]),
   category: z.enum([
@@ -39,7 +39,7 @@ const saveLevelSchema = z.object({
   levelNo: z
     .number()
     .int()
-    .positive("Level number must be a positive integer."),
+    .nonnegative("Level number must be a non-negative integer."),
   password: z.string().min(1, "Password is required."),
 });
 
