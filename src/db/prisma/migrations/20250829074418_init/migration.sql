@@ -59,6 +59,7 @@ CREATE TABLE "public"."CTFS" (
 
 -- CreateTable
 CREATE TABLE "public"."levels" (
+    "password" TEXT NOT NULL,
     "levelNo" INTEGER NOT NULL,
     "ctfName" TEXT NOT NULL,
     "id" TEXT NOT NULL,

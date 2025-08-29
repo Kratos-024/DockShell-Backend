@@ -73,8 +73,16 @@ enum Category {
 model CTFS {
   ctfName String @unique
   totalLevels Int
+  title String
+  imgSrc String
+  totalPlayers Int
+  subHeader String
+  difficulty String
+  topic String
+
 }
 model CtfLevels {
+  password String
   levelNo Int
   ctfName String
   id             String       @id @default(cuid())

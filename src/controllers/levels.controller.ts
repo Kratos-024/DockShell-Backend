@@ -1,12 +1,15 @@
 import type { Request, Response } from "express";
-import { levelCreateSchema, saveLevelSchema } from "../types/Levels.type";
+import {
+  ctfCreateSchema,
+  ctflevelCreateSchema,
+  saveLevelSchema,
+} from "../types/Levels.type";
 import { prisma } from "../db";
-import { success } from "zod";
 
 class LevelController {
   public async createLevel(req: Request, res: Response) {
     try {
-      const levelData = levelCreateSchema.safeParse(req.body);
+      const levelData = ctflevelCreateSchema.safeParse(req.body);
       if (!levelData.success) {
         return res.status(400).json({
           statusCode: 400,
@@ -28,6 +31,8 @@ class LevelController {
         category,
         estimatedTime,
         createdAt,
+        password,
+        levelNo,
       } = levelData.data;
 
       const levelExisted = await prisma.ctfLevels.findFirst({
@@ -42,10 +47,11 @@ class LevelController {
 
       const level = await prisma.ctfLevels.create({
         data: {
+          password,
           uniqueId,
           goal,
           ctfName,
-          levelNo: 3,
+          levelNo,
           description,
           commands: commands,
           hints: hints,
@@ -74,7 +80,14 @@ class LevelController {
   public async getLevel(req: Request, res: Response) {
     try {
       const { uniqueId } = req.params;
+      const ctfName = uniqueId?.split("-")[0];
 
+      const ctfTotalLevels = await prisma.cTFS.findUnique({
+        where: { ctfName: ctfName },
+        select: {
+          totalLevels: true,
+        },
+      });
       const level = await prisma.ctfLevels.findUnique({
         where: { uniqueId },
       });
@@ -87,7 +100,7 @@ class LevelController {
 
       return res.status(200).json({
         statusCode: 200,
-        data: level,
+        data: { level: level, ctfTotalLevels },
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -258,5 +271,79 @@ class LevelController {
   //     return res.status(500).json({ error: "Internal Server Error" });
   //   }
   // };
+  public async createCtf(req: Request, res: Response) {
+    try {
+      const ctfData = ctfCreateSchema.safeParse(req.body);
+      if (!ctfData.success) {
+        return res.status(400).json({
+          statusCode: 400,
+          error: ctfData.error,
+        });
+      }
+
+      const {
+        totalLevels,
+        totalPlayers,
+        imgSrc,
+        ctfName,
+
+        difficulty,
+
+        title,
+        subHeader,
+        topic,
+      } = ctfData.data;
+
+      const ctfExisted = await prisma.cTFS.findFirst({
+        where: { ctfName },
+      });
+      if (ctfExisted) {
+        return res.status(409).json({
+          statusCode: 409,
+          error: "CTF with this uniqueId already exists",
+        });
+      }
+
+      const CTF = await prisma.cTFS.create({
+        data: {
+          topic,
+          title,
+          subHeader,
+          totalLevels,
+          totalPlayers,
+          imgSrc,
+          ctfName,
+          difficulty,
+        },
+      });
+
+      return res.status(201).json({
+        statusCode: 201,
+        message: "CTF created successfully",
+        data: CTF,
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        statusCode: 500,
+        error: error.message || "Internal Server Error",
+      });
+    }
+  }
+  public async getCtf(req: Request, res: Response) {
+    try {
+      const CTFs = await prisma.cTFS.findMany({});
+
+      return res.status(200).json({
+        statusCode: 200,
+        message: "CTFs get successfully",
+        data: CTFs,
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        statusCode: 500,
+        error: error.message || "Internal Server Error",
+      });
+    }
+  }
 }
 export { LevelController };

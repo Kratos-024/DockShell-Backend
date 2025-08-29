@@ -13,6 +13,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^7.0.5",
+    "openai": "^5.16.0",
     "ssh2": "^1.17.0",
     "ws": "^8.18.3",
     "zod": "^4.1.0"
@@ -27,7 +28,7 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "migrate": "bunx prisma migrate dev --name init --schema src/db"
+    "migrate": "bunx prisma migrate dev --schema src/db/prisma"
   },
   "peerDependencies": {
     "typescript": "^5"

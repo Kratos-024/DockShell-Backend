@@ -4,9 +4,12 @@ import { authMiddleware } from "../middlewares/user.auth.middleware";
 
 const ctfLevelRouter = Router();
 const ctfLevel = new LevelController();
-ctfLevelRouter.use(authMiddleware);
 ctfLevelRouter.route("/createLevel").post(ctfLevel.createLevel);
+ctfLevelRouter.route("/createCtf").post(ctfLevel.createCtf);
+ctfLevelRouter.route("/getCtf").get(ctfLevel.getCtf);
 ctfLevelRouter.route("/getctfLevel/:uniqueId").get(ctfLevel.getLevel);
+
+ctfLevelRouter.use(authMiddleware);
 ctfLevelRouter.route("/getAllctfLevel").post(ctfLevel.getAllLevels);
 ctfLevelRouter.route("/deleteCtfLevel/:uniqueId").post(ctfLevel.deleteLevel);
 ctfLevelRouter.route("/saveLevelProgress").post(ctfLevel.saveLevelProgress);

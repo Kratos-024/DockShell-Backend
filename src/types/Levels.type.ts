@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-const levelCreateSchema = z.object({
+const ctflevelCreateSchema = z.object({
+  levelNo: z.number().nonnegative(),
+  password: z.string(),
   uniqueId: z.string(), // if frostling and level0 then frostling-level0
   goal: z.string().min(10, "Goal must be descriptive (min 10 chars)"),
   description: z.string().min(20, "Description must explain the scenario"),
@@ -31,9 +33,21 @@ const levelCreateSchema = z.object({
     "network",
   ]),
   estimatedTime: z.number().min(1).max(120),
-
-  createdAt: z.date().default(() => new Date()),
+  createdAt: z.preprocess((arg) => {
+    if (typeof arg == "string" || arg instanceof Date) return new Date(arg);
+  }, z.date()),
 });
+const ctfCreateSchema = z.object({
+  ctfName: z.string(),
+  totalLevels: z.number(),
+  title: z.string(),
+  imgSrc: z.string(),
+  totalPlayers: z.number(),
+  subHeader: z.string(),
+  difficulty: z.string(),
+  topic: z.string(),
+});
+
 const saveLevelSchema = z.object({
   ctfName: z.string().min(1, "CTF name is required."),
   levelNo: z
@@ -43,4 +57,4 @@ const saveLevelSchema = z.object({
   password: z.string().min(1, "Password is required."),
 });
 
-export { levelCreateSchema, saveLevelSchema };
+export { ctflevelCreateSchema, ctfCreateSchema, saveLevelSchema };
