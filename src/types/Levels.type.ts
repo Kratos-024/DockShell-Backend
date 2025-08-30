@@ -1,3 +1,4 @@
+import { password } from "bun";
 import { z } from "zod";
 
 const ctflevelCreateSchema = z.object({
@@ -32,6 +33,14 @@ const ctflevelCreateSchema = z.object({
     "forensics",
     "network",
   ]),
+  credentials: z
+    .object({
+      username: z.string(),
+      Port: z.number(),
+      host: z.string(),
+      password: z.string(),
+    })
+    .optional(),
   estimatedTime: z.number().min(1).max(120),
   createdAt: z.preprocess((arg) => {
     if (typeof arg == "string" || arg instanceof Date) return new Date(arg);

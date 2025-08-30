@@ -81,12 +81,24 @@ model CTFS {
   topic String
 
 }
+model Credentials {
+  ctfLevelUniqueId String @unique
+  host String
+  username String
+  password String?
+  Port Int
+  @@map("credentials")
+
+  ctflevel CtfLevels @relation(fields: [ctfLevelUniqueId] ,references: [uniqueId], onDelete: Cascade)
+}
 model CtfLevels {
   password String
   levelNo Int
   ctfName String
   id             String       @id @default(cuid())
   uniqueId       String       @unique
+  credentials    Credentials?
+
   goal           String
   links          String[]
   description    String

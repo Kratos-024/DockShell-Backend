@@ -5,7 +5,32 @@ import {
   saveLevelSchema,
 } from "../types/Levels.type";
 import { prisma } from "../db";
+import { Prisma } from "../db/generated/prisma/client";
+export const sendSuccess = (
+  res: Response,
+  data: unknown,
+  message = "Success",
+  statusCode = 200
+) => {
+  return res.status(statusCode).json({
+    success: true,
+    message,
+    data,
+  });
+};
 
+export const sendError = (
+  res: Response,
+  errorMessage: string,
+  statusCode = 500,
+  errorDetails?: unknown
+) => {
+  return res.status(statusCode).json({
+    success: false,
+    error: errorMessage,
+    details: errorDetails, // Optional: for sending validation errors
+  });
+};
 class LevelController {
   public async createLevel(req: Request, res: Response) {
     try {
@@ -90,6 +115,26 @@ class LevelController {
       });
       const level = await prisma.ctfLevels.findUnique({
         where: { uniqueId },
+        select: {
+          password: true,
+          levelNo: true,
+          ctfName: true,
+          id: true,
+          uniqueId: true,
+          goal: true,
+          links: true,
+          description: true,
+          commands: true,
+          hints: true,
+          files: true,
+          expectedOutput: true,
+          difficulty: true,
+          category: true,
+          estimatedTime: true,
+          createdAt: true,
+          updatedAt: true,
+          credentials: true,
+        },
       });
       if (!level) {
         return res.status(404).json({
@@ -97,7 +142,6 @@ class LevelController {
           error: "Level not found",
         });
       }
-
       return res.status(200).json({
         statusCode: 200,
         data: { level: level, ctfTotalLevels },
@@ -152,53 +196,74 @@ class LevelController {
       });
     }
   }
-  public saveLevelProgress = async (req: Request, res: Response) => {
+  public saveLevelFlag = async (req: Request, res: Response) => {
     try {
       const user = req.user;
-      if (!user?.userId) {
-        return res.status(401).json({ error: "User not authenticated." });
+      if (!user?.userId || !user?.username) {
+        return sendError(res, "User not authenticated. Please log in.", 401);
       }
 
       const validationResult = saveLevelSchema.safeParse(req.body);
       if (!validationResult.success) {
-        return res.status(400).json({ error: validationResult.error.format() });
+        return sendError(
+          res,
+          "Invalid request data.",
+          400,
+          validationResult.error.format()
+        );
       }
+
       const { ctfName, levelNo, password } = validationResult.data;
-      console.log({ ctfName, levelNo, password });
-      const ctfProgress = await prisma.ctfProgress.upsert({
+
+      const level = await prisma.ctfLevels.findFirst({
+        where: { uniqueId: `${ctfName.toLowerCase()}-level${levelNo}` },
+      });
+
+      // Use 403 Forbidden for an incorrect flag/password
+      if (!level || level.password.trim() !== password.trim()) {
+        return sendError(res, "Incorrect flag for this level.", 403);
+      }
+
+      // Check if this level has already been claimed
+      const existingClaim = await prisma.ctfClaimed.findFirst({
         where: {
-          username_ctfName: { username: user.username, ctfName },
+          levelNo,
+          ctfprogress: {
+            username: user.username,
+            ctfName,
+          },
         },
-        update: {},
-        create: {
-          username: user.username,
-          ctfName: ctfName,
-        },
+      });
+
+      if (existingClaim) {
+        return sendError(res, "You have already claimed this level.", 409);
+      }
+
+      const ctfProgress = await prisma.ctfProgress.upsert({
+        where: { username_ctfName: { username: user.username, ctfName } },
+        update: {}, // No update needed if it exists
+        create: { username: user.username, ctfName },
       });
 
       const newClaimedLevel = await prisma.ctfClaimed.create({
         data: {
           levelNo,
-          password,
-
-          ctfprogress: {
-            connect: { id: ctfProgress.id },
-          },
+          password, // Storing the submitted password might be a security risk, consider omitting it
+          ctfprogress: { connect: { id: ctfProgress.id } },
         },
       });
-      console.log("fdsjfdsgfdf", newClaimedLevel);
-      return res.status(201).json({
-        message: `Progress for ${ctfName} Level ${levelNo} saved successfully.`,
-        data: newClaimedLevel,
-      });
+
+      return sendSuccess(
+        res,
+        newClaimedLevel,
+        `Progress for ${ctfName} Level ${levelNo} saved successfully.`,
+        201 // 201 Created is more specific for creating a new resource
+      );
     } catch (error: any) {
-      if (error.code === "P2002") {
-        return res
-          .status(409)
-          .json({ error: "This level has already been claimed by the user." });
-      }
       console.error("Error saving level progress:", error);
-      return res.status(500).json({ error: "Internal Server Error" });
+      // The previous P2002 check for duplicate claims is good, but our manual check is clearer.
+      // This generic catch-all is for unexpected database or server errors.
+      return sendError(res, "An unexpected error occurred on the server.", 500);
     }
   };
 
@@ -339,6 +404,82 @@ class LevelController {
         data: CTFs,
       });
     } catch (error: any) {
+      return res.status(500).json({
+        statusCode: 500,
+        error: error.message || "Internal Server Error",
+      });
+    }
+  }
+  public async updateLevel(req: Request, res: Response) {
+    try {
+      const { uniqueId } = req.params;
+      const levelData = ctflevelCreateSchema.partial().safeParse(req.body);
+
+      if (!levelData.success) {
+        return res.status(400).json({
+          statusCode: 400,
+          error: levelData.error.format(),
+        });
+      }
+
+      const levelExisted = await prisma.ctfLevels.findUnique({
+        where: { uniqueId },
+      });
+
+      if (!levelExisted) {
+        return res.status(404).json({
+          statusCode: 404,
+          error: "Level with this uniqueId not found",
+        });
+      }
+
+      const { credentials, ...otherLevelData } = levelData.data;
+      const dataToUpdate: any = { ...otherLevelData };
+      console.log(credentials);
+      if (dataToUpdate.files) {
+        dataToUpdate.files = JSON.stringify(dataToUpdate.files);
+      }
+      if (dataToUpdate.estimatedTime) {
+        dataToUpdate.estimatedTime = `${dataToUpdate.estimatedTime}`;
+      }
+
+      if (credentials) {
+        dataToUpdate.credentials = {
+          upsert: {
+            where: { ctfLevelUniqueId: uniqueId },
+            create: credentials,
+            update: credentials,
+          },
+        };
+      } else if (credentials === null) {
+        dataToUpdate.credentials = {
+          delete: true,
+        };
+      }
+
+      const updatedLevel = await prisma.ctfLevels.update({
+        where: { uniqueId },
+        data: dataToUpdate,
+        include: {
+          credentials: true,
+        },
+      });
+
+      return res.status(200).json({
+        statusCode: 200,
+        message: "Level updated successfully",
+        data: updatedLevel,
+      });
+    } catch (error: any) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        return res.status(404).json({
+          statusCode: 404,
+          error: "Credential to delete was not found.",
+        });
+      }
       return res.status(500).json({
         statusCode: 500,
         error: error.message || "Internal Server Error",

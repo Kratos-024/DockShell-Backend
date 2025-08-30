@@ -28,7 +28,7 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "migrate": "bunx prisma migrate dev --schema src/db/prisma"
+    "migrate": "bunx prisma migrate dev --name init5 --schema src/db/prisma"
   },
   "peerDependencies": {
     "typescript": "^5"
