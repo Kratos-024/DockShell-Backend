@@ -45,6 +45,7 @@ model User {
   LastName         String
   username         String        @unique
   email            String        @unique
+  profileImage     String?
   password         String
   resetToken       String?       @unique
   resetTokenExpiry DateTime?

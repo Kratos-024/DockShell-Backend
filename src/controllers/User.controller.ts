@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import type { ZodError } from "zod";
+
 const formatZodError = (error: ZodError) => {
   const details = error.issues.map((issue) => ({
     field: issue.path.join("."),
@@ -23,6 +24,7 @@ const formatZodError = (error: ZodError) => {
     details,
   };
 };
+
 export class UserController {
   constructor() {}
 
@@ -112,6 +114,38 @@ export class UserController {
     }
   };
 
+  public addImage = async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.userId;
+      //@ts-ignore
+
+      if (!req.file) {
+        return res.status(400).json({
+          statusCode: 400,
+          error: "No image file provided.",
+        });
+      }
+      const imageUrl = `/uploads/${req.file.filename}`;
+
+      await prisma.user.update({
+        where: { id: userId },
+
+        data: { profileImage: imageUrl },
+      });
+
+      return res.status(200).json({
+        statusCode: 200,
+        message: "Image uploaded successfully.",
+        data: { imageUrl },
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        statusCode: 500,
+        error: error.message || "Internal Server Error",
+      });
+    }
+  };
+
   public loginUser = async (req: Request, res: Response) => {
     try {
       const validationResult = userLoginSchema.safeParse(req.body);
@@ -162,7 +196,6 @@ export class UserController {
     }
   };
 
-  // New Logout Controller
   public logoutUser = async (req: Request, res: Response) => {
     try {
       const token = req.headers.authorization?.split(" ")[1];
@@ -176,7 +209,6 @@ export class UserController {
         });
       }
 
-      // Invalidate the token by deleting it from the database
       await prisma.authToken.deleteMany({
         where: {
           token: token,
@@ -273,6 +305,7 @@ export class UserController {
       });
     }
   };
+
   public resetPassword = async (req: Request, res: Response) => {
     try {
       const resetData = resetPasswordSchema.safeParse(req.body);
@@ -380,6 +413,7 @@ export class UserController {
       });
     }
   };
+
   public validateSession = async (req: Request, res: Response) => {
     try {
       const userId = req.user?.userId;
