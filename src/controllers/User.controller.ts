@@ -113,11 +113,9 @@ export class UserController {
       });
     }
   };
-
   public addImage = async (req: Request, res: Response) => {
     try {
       const userId = req.user?.userId;
-      //@ts-ignore
 
       if (!req.file) {
         return res.status(400).json({
@@ -125,11 +123,11 @@ export class UserController {
           error: "No image file provided.",
         });
       }
-      const imageUrl = `/uploads/${req.file.filename}`;
+
+      const imageUrl = req.file.path;
 
       await prisma.user.update({
         where: { id: userId },
-
         data: { profileImage: imageUrl },
       });
 
@@ -139,13 +137,43 @@ export class UserController {
         data: { imageUrl },
       });
     } catch (error: any) {
+      console.error("Error in addImage:", error);
+      return res.status(500).json({
+        statusCode: 500,
+        error: "Internal Server Error",
+        message: "An unexpected error occurred during image upload.",
+      });
+    }
+  };
+  public updateBio = async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.userId;
+      const { bio } = req.body;
+
+      if (typeof bio !== "string") {
+        return res.status(400).json({
+          statusCode: 400,
+          error: "Bio must be a string.",
+        });
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { bio },
+      });
+
+      return res.status(200).json({
+        statusCode: 200,
+        message: "Bio updated successfully.",
+        data: { bio: updatedUser.bio },
+      });
+    } catch (error: any) {
       return res.status(500).json({
         statusCode: 500,
         error: error.message || "Internal Server Error",
       });
     }
   };
-
   public loginUser = async (req: Request, res: Response) => {
     try {
       const validationResult = userLoginSchema.safeParse(req.body);

@@ -13,5 +13,6 @@ userRouter.route("/validate").get(authMiddleware, user.validateSession);
 userRouter
   .route("/addImage")
   .post(authMiddleware, upload.single("profileImage"), user.addImage);
+userRouter.route("/updateBio").put(authMiddleware, user.updateBio);
 
 export { userRouter };

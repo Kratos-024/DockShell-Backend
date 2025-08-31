@@ -311,6 +311,9 @@ class LevelController {
           username: user.username,
         },
         select: {
+          username: true,
+          profileImage: true,
+          bio: true,
           skills: true,
         },
       });
