@@ -13,7 +13,6 @@ export class SSHHandler {
 
   private setupSSHListeners(sshClient: Client): void {
     sshClient.on("ready", () => {
-      console.log("SSH connection established");
       this.isSSHConnected = true;
 
       sshClient.shell((err, stream) => {
@@ -25,7 +24,7 @@ export class SSHHandler {
           return;
         }
 
-        console.log("SSH shell opened");
+        // console.log("SSH shell opened");
         this.sshStream = stream;
 
         stream.on("data", (data: Buffer) => {
@@ -75,7 +74,6 @@ export class SSHHandler {
       password: "[HIDDEN]",
     });
 
-    // Clean up existing connection
     if (this.sshClient) {
       console.log("Closing existing SSH connection");
       this.sshClient.end();

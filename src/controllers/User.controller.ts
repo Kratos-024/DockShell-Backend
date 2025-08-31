@@ -10,7 +10,19 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
-
+import type { ZodError } from "zod";
+const formatZodError = (error: ZodError) => {
+  const details = error.issues.map((issue) => ({
+    field: issue.path.join("."),
+    message: issue.message,
+  }));
+  return {
+    statusCode: 400,
+    error: "Validation Failed",
+    message: "The provided data is invalid.",
+    details,
+  };
+};
 export class UserController {
   constructor() {}
 
@@ -44,30 +56,24 @@ export class UserController {
 
   public createUser = async (req: Request, res: Response) => {
     try {
-      const createData = userCreateSchema.safeParse(req.body);
-      if (!createData.success) {
-        return res.status(400).json({
-          statusCode: 400,
-          error: createData.error,
-        });
+      const validationResult = userCreateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(formatZodError(validationResult.error));
       }
 
       const { firstName, lastName, username, email, password } =
-        createData.data;
+        validationResult.data;
 
-      const userExisted = await prisma.user.findFirst({
-        where: {
-          OR: [{ username }, { email }],
-        },
+      const existingUser = await prisma.user.findFirst({
+        where: { OR: [{ username }, { email }] },
       });
 
-      if (userExisted) {
+      if (existingUser) {
+        const field = existingUser.username === username ? "username" : "email";
         return res.status(409).json({
           statusCode: 409,
-          error:
-            userExisted.username === username
-              ? "Username already exists"
-              : "Email already exists",
+          error: "Conflict",
+          message: `A user with this ${field} already exists.`,
         });
       }
 
@@ -86,87 +92,112 @@ export class UserController {
           LastName: true,
           username: true,
           email: true,
-          createdAt: true,
-          updatedAt: true,
         },
       });
+
       const token = await this._generateAndSaveToken(user);
+
       return res.status(201).json({
         statusCode: 201,
-        message: "User created successfully",
-        data: {
-          user,
-          token,
-        },
+        message: "Account created successfully!",
+        data: { user, token },
       });
     } catch (error: any) {
+      console.error("Error in createUser:", error);
       return res.status(500).json({
         statusCode: 500,
-        error: error.message || "Internal Server Error",
+        error: "Internal Server Error",
+        message: "An unexpected error occurred on the server.",
       });
     }
   };
 
   public loginUser = async (req: Request, res: Response) => {
     try {
-      const loginData = userLoginSchema.safeParse(req.body);
-      if (!loginData.success) {
-        return res.status(400).json({
-          statusCode: 400,
-          error: loginData.error,
-        });
+      const validationResult = userLoginSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json(formatZodError(validationResult.error));
       }
 
-      const { username, password } = loginData.data;
+      const { username, password } = validationResult.data;
 
       const user = await prisma.user.findFirst({
-        where: {
-          OR: [{ username }, { email: username }],
-        },
+        where: { OR: [{ username }, { email: username }] },
       });
 
-      if (!user) {
+      const isPasswordValid =
+        user && (await bcrypt.compare(password, user.password));
+
+      if (!user || !isPasswordValid) {
         return res.status(401).json({
           statusCode: 401,
-          error: "Invalid credentials",
+          error: "Unauthorized",
+          message: "Invalid username or password.",
         });
       }
 
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) {
-        return res.status(401).json({
-          statusCode: 401,
-          error: "Invalid credentials",
-        });
-      }
       const token = await this._generateAndSaveToken(user);
-
       await prisma.user.update({
         where: { id: user.id },
         data: { lastLogin: new Date() },
       });
 
+      const { password: _, ...userWithoutPassword } = user;
+
       return res.status(200).json({
         statusCode: 200,
-        message: "Login successful",
+        message: "Login successful!",
         data: {
-          user: {
-            id: user.id,
-            firstName: user.firstName,
-            lastName: user.LastName,
-            username: user.username,
-            email: user.email,
-          },
+          user: userWithoutPassword,
           token,
         },
       });
     } catch (error: any) {
+      console.error("Error in loginUser:", error);
       return res.status(500).json({
         statusCode: 500,
-        error: error.message || "Internal Server Error",
+        error: "Internal Server Error",
+        message: "An unexpected error occurred on the server.",
       });
     }
   };
+
+  // New Logout Controller
+  public logoutUser = async (req: Request, res: Response) => {
+    try {
+      const token = req.headers.authorization?.split(" ")[1];
+      const userId = req.user?.userId;
+
+      if (!token || !userId) {
+        return res.status(401).json({
+          statusCode: 401,
+          error: "Unauthorized",
+          message: "No authentication token provided.",
+        });
+      }
+
+      // Invalidate the token by deleting it from the database
+      await prisma.authToken.deleteMany({
+        where: {
+          token: token,
+          userId: userId,
+        },
+      });
+
+      return res.status(200).json({
+        statusCode: 200,
+        message: "Logout successful.",
+      });
+    } catch (error: any) {
+      console.error("Error in logoutUser:", error);
+      return res.status(500).json({
+        statusCode: 500,
+        error: "Internal Server Error",
+        message: "An unexpected error occurred during logout.",
+      });
+    }
+  };
+
   public forgotPassword = async (req: Request, res: Response) => {
     try {
       const forgotData = forgotPasswordSchema.safeParse(req.body);
@@ -351,7 +382,6 @@ export class UserController {
   };
   public validateSession = async (req: Request, res: Response) => {
     try {
-      // The authMiddleware has already run and attached `req.user`
       const userId = req.user?.userId;
 
       const user = await prisma.user.findUnique({

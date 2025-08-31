@@ -5,7 +5,6 @@ import {
   saveLevelSchema,
 } from "../types/Levels.type";
 import { prisma } from "../db";
-import { Prisma } from "../db/generated/prisma/client";
 export const sendSuccess = (
   res: Response,
   data: unknown,
@@ -102,6 +101,7 @@ class LevelController {
       });
     }
   }
+
   public async getLevel(req: Request, res: Response) {
     try {
       const { uniqueId } = req.params;
@@ -219,12 +219,10 @@ class LevelController {
         where: { uniqueId: `${ctfName.toLowerCase()}-level${levelNo}` },
       });
 
-      // Use 403 Forbidden for an incorrect flag/password
       if (!level || level.password.trim() !== password.trim()) {
         return sendError(res, "Incorrect flag for this level.", 403);
       }
 
-      // Check if this level has already been claimed
       const existingClaim = await prisma.ctfClaimed.findFirst({
         where: {
           levelNo,
@@ -239,34 +237,60 @@ class LevelController {
         return sendError(res, "You have already claimed this level.", 409);
       }
 
-      const ctfProgress = await prisma.ctfProgress.upsert({
-        where: { username_ctfName: { username: user.username, ctfName } },
-        update: {}, // No update needed if it exists
-        create: { username: user.username, ctfName },
-      });
+      const result = await prisma.$transaction(async (tx) => {
+        const ctfProgress = await tx.ctfProgress.upsert({
+          where: { username_ctfName: { username: user.username, ctfName } },
+          update: {},
+          create: { username: user.username, ctfName },
+        });
 
-      const newClaimedLevel = await prisma.ctfClaimed.create({
-        data: {
-          levelNo,
-          password, // Storing the submitted password might be a security risk, consider omitting it
-          ctfprogress: { connect: { id: ctfProgress.id } },
-        },
+        // Create the claimed level
+        const newClaimedLevel = await tx.ctfClaimed.create({
+          data: {
+            levelNo,
+            password,
+            ctfprogress: { connect: { id: ctfProgress.id } },
+          },
+        });
+
+        // Check if user already has THIS specific skill category
+        const existingSkill = await tx.skills.findUnique({
+          where: {
+            username_category: {
+              username: user.username,
+              category: level.category,
+            },
+          },
+        });
+
+        const skillUniqueId = `${user.username}-${level.category}`;
+
+        if (!existingSkill) {
+          // Create new skill only if this category doesn't exist for this user
+          await tx.skills.create({
+            data: {
+              category: level.category,
+              uniqueId: skillUniqueId,
+              username: user.username,
+            },
+          });
+        }
+        // If skill already exists for this category, do nothing (don't overwrite)
+
+        return newClaimedLevel;
       });
 
       return sendSuccess(
         res,
-        newClaimedLevel,
-        `Progress for ${ctfName} Level ${levelNo} saved successfully.`,
-        201 // 201 Created is more specific for creating a new resource
+        result,
+        `Progress for ${ctfName} Level ${levelNo} saved successfully. Skills updated!`,
+        201
       );
     } catch (error: any) {
       console.error("Error saving level progress:", error);
-      // The previous P2002 check for duplicate claims is good, but our manual check is clearer.
-      // This generic catch-all is for unexpected database or server errors.
       return sendError(res, "An unexpected error occurred on the server.", 500);
     }
   };
-
   public getAllUserProgress = async (req: Request, res: Response) => {
     try {
       const user = req.user;
@@ -282,7 +306,14 @@ class LevelController {
           ctfClaimeds: {},
         },
       });
-      console.log(allProgress);
+      const skills = await prisma.user.findUnique({
+        where: {
+          username: user.username,
+        },
+        select: {
+          skills: true,
+        },
+      });
       if (!allProgress.length) {
         return res.status(404).json({
           success: true,
@@ -290,7 +321,9 @@ class LevelController {
         });
       }
 
-      return res.status(200).json({ success: true, data: allProgress });
+      return res
+        .status(200)
+        .json({ success: true, data: { allProgress, skills } });
     } catch (error: any) {
       console.error("Error fetching user progress:", error);
       return res
@@ -336,7 +369,7 @@ class LevelController {
   //     return res.status(500).json({ error: "Internal Server Error" });
   //   }
   // };
-  public async createCtf(req: Request, res: Response) {
+  public async createOrUpdateCtf(req: Request, res: Response) {
     try {
       const ctfData = ctfCreateSchema.safeParse(req.body);
       if (!ctfData.success) {
@@ -351,41 +384,39 @@ class LevelController {
         totalPlayers,
         imgSrc,
         ctfName,
-
         difficulty,
-
         title,
         subHeader,
         topic,
       } = ctfData.data;
 
-      const ctfExisted = await prisma.cTFS.findFirst({
-        where: { ctfName },
-      });
-      if (ctfExisted) {
-        return res.status(409).json({
-          statusCode: 409,
-          error: "CTF with this uniqueId already exists",
-        });
-      }
-
-      const CTF = await prisma.cTFS.create({
-        data: {
+      const ctf = await prisma.cTFS.upsert({
+        where: { ctfName }, // Unique field to find the record
+        update: {
           topic,
           title,
           subHeader,
           totalLevels,
           totalPlayers,
           imgSrc,
+          difficulty,
+        },
+        create: {
           ctfName,
+          topic,
+          title,
+          subHeader,
+          totalLevels,
+          totalPlayers,
+          imgSrc,
           difficulty,
         },
       });
 
-      return res.status(201).json({
-        statusCode: 201,
-        message: "CTF created successfully",
-        data: CTF,
+      return res.status(200).json({
+        statusCode: 200,
+        message: "CTF updated/created successfully",
+        data: ctf,
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -394,6 +425,7 @@ class LevelController {
       });
     }
   }
+
   public async getCtf(req: Request, res: Response) {
     try {
       const CTFs = await prisma.cTFS.findMany({});
@@ -471,15 +503,15 @@ class LevelController {
         data: updatedLevel,
       });
     } catch (error: any) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2025"
-      ) {
-        return res.status(404).json({
-          statusCode: 404,
-          error: "Credential to delete was not found.",
-        });
-      }
+      // if (
+      //   error instanceof Prisma.PrismaClientKnownRequestError &&
+      //   error.code === "P2025"
+      // ) {
+      //   return res.status(404).json({
+      //     statusCode: 404,
+      //     error: "Credential to delete was not found.",
+      //   });
+      // }
       return res.status(500).json({
         statusCode: 500,
         error: error.message || "Internal Server Error",
