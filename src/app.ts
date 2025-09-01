@@ -14,7 +14,7 @@ const corsOptions = {
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: "*",
-  credentials: true, // Add this if you're using cookies/auth headers
+  credentials: true,
 };
 app.use("/api/v1/corn", cornRouter);
 app.use(cors(corsOptions));

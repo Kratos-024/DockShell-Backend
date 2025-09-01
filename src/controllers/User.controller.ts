@@ -55,7 +55,6 @@ export class UserController {
 
     return token;
   };
-
   public createUser = async (req: Request, res: Response) => {
     try {
       const validationResult = userCreateSchema.safeParse(req.body);
