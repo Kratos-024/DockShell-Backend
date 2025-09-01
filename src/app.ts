@@ -2,8 +2,19 @@ import express from "express";
 import cors from "cors";
 import { userRouter } from "./routes/user.routes";
 import { ctfLevelRouter } from "./routes/levels.routes";
+
 const app = express();
-app.use(cors({ origin: "*" }));
+
+const corsOptions = {
+  origin: [
+    "https://68b52d817223a6961129e6ba--dockshell.netlify.app",
+    "https://68b52d817223a6961129e6ba--dockshell.netlify.app",
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: "*",
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api/v1/user", userRouter);
