@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { userRouter } from "./routes/user.routes";
 import { ctfLevelRouter } from "./routes/levels.routes";
+import { cornRouter } from "./routes/corn.routes";
 
 const app = express();
 
@@ -14,7 +15,7 @@ const corsOptions = {
   allowedHeaders: "*",
   credentials: true, // Add this if you're using cookies/auth headers
 };
-
+app.use("/api/v1/corn", cornRouter);
 app.use(cors(corsOptions));
 app.use(express.json());
 
