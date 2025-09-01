@@ -236,7 +236,7 @@ class LevelController {
       if (existingClaim) {
         return sendError(res, "You have already claimed this level.", 409);
       }
-
+      //@ts-ignore
       const result = await prisma.$transaction(async (tx) => {
         const ctfProgress = await tx.ctfProgress.upsert({
           where: { username_ctfName: { username: user.username, ctfName } },
