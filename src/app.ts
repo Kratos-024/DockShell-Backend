@@ -8,10 +8,11 @@ const app = express();
 const corsOptions = {
   origin: [
     "https://68b52d817223a6961129e6ba--dockshell.netlify.app",
-    "https://68b52d817223a6961129e6ba--dockshell.netlify.app",
+    "https://dockshell.netlify.app",
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: "*",
+  credentials: true, // Add this if you're using cookies/auth headers
 };
 
 app.use(cors(corsOptions));
