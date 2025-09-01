@@ -306,6 +306,7 @@ class LevelController {
           ctfClaimeds: {},
         },
       });
+
       const skills = await prisma.user.findUnique({
         where: {
           username: user.username,
@@ -317,16 +318,15 @@ class LevelController {
           skills: true,
         },
       });
-      if (!allProgress.length) {
-        return res.status(404).json({
-          success: true,
-          message: "No progress found for this user.",
-        });
-      }
 
-      return res
-        .status(200)
-        .json({ success: true, data: { allProgress, skills } });
+      // ✅ Always return success, even with empty data
+      return res.status(200).json({
+        success: true,
+        data: {
+          allProgress: allProgress || [],
+          skills: skills || { username: user.username, skills: [] },
+        },
+      });
     } catch (error: any) {
       console.error("Error fetching user progress:", error);
       return res

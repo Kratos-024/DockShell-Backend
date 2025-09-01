@@ -10,6 +10,7 @@ const corsOptions = {
   origin: [
     "https://68b52d817223a6961129e6ba--dockshell.netlify.app",
     "https://dockshell.netlify.app",
+    "http://localhost:5173",
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: "*",

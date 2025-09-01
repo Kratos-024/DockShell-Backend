@@ -182,9 +182,8 @@ export class UserController {
       }
 
       const { username, password } = validationResult.data;
-
       const user = await prisma.user.findFirst({
-        where: { OR: [{ username }, { email: username }] },
+        where: { username: username.toLowerCase() },
       });
 
       const isPasswordValid =

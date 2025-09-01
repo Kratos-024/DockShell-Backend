@@ -72,10 +72,7 @@ const userCreateSchema = z.object({
 
 // User Login Schema
 const userLoginSchema = z.object({
-  username: z
-    .string()
-    .min(1, "Username or email is required")
-    .max(100, "Username or email is too long"),
+  username: z.string(),
   password: z.string().min(1, "Password is required"),
 });
 
